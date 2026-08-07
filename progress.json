@@ -1,8 +1,15 @@
 {
     "currentPhase": "p0",
     "currentModule": "module-01-javascript",
-    "currentSkill": "1.1",
-    "completed": [],
+    "currentSkill": "1.2",
+    "completed": ["1.1"],
     "skipped": [],
-    "history": []
+    "history": [
+        {
+            "skill": "1.1",
+            "score": 8,
+            "verdict": "pass",
+            "date": "2026-08-07"
+        }
+    ]
 }
