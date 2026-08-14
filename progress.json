@@ -27,5 +27,15 @@
         {"skill": "1.20", "score": 8.5, "verdict": "pass", "date": "2026-08-13"},
         {"skill": "1.22", "score": 9, "verdict": "pass", "date": "2026-08-14"},
         {"skill": "1.23", "score": 10, "verdict": "pass", "date": "2026-08-14"}
+    ],
+    "weeklyReviews": [
+        {
+            "week": 1,
+            "date": "2026-08-14",
+            "score": 9.5,
+            "verdict": "pass",
+            "studyDays": 6,
+            "file": "weekly/weekly-review-week-01.md"
+        }
     ]
 }
