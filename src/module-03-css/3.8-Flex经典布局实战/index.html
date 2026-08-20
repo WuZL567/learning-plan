@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>3.8 Flex 经典布局实战练习</title>
+  <style>
+    /*
+     * 练习要求（验收标准）：
+     * 1. 实现圣杯布局：header + 三栏 main + footer。
+     * 2. 左右两栏固定宽度（左 200px、右 200px），中间栏自适应占满剩余空间。
+     * 3. 中间栏的 div 在 HTML 顺序中排最前（优先渲染），视觉上仍在左右两栏中间。
+     * 4. footer 在内容不足时贴底（min-height: 100vh），内容超出时页面正常滚动。
+     * 5. 窗口宽度 < 600px 时降级为单列布局（可以用媒体查询 + flex-wrap）。
+     * 6. 在注释里用自己的话解释下面三个问题：
+     *    a. flex: 1 为什么能让中间栏自适应？
+     *    b. min-height: 100vh + flex 为什么能让 footer 贴底？
+     *    c. 中间栏 HTML 在前，为什么视觉顺序仍是 左-中-右？
+     *
+     * 提示：外层容器 flex-direction: column，main 内部再开一个 flex 容器放三栏。
+     * 提示：左右栏用 flex: 0 0 200px，中间栏用 flex: 1。
+     * 提示：给每个区块（header/main三栏/footer）加个背景色，方便肉眼验证布局。
+     */
+
+    @media (max-width: 600px) {
+
+      /* 窗口宽度小于或等于600px时，执行这里面的样式规则 */
+      .main {
+        flex-direction: column;
+      }
+
+      .left,
+      .center,
+      .right {
+        flex: 1;
+        width: 100%;
+      }
+    }
+
+    * {
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      font-size: 10px;
+    }
+
+    .box {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+      /* min-height + flex 并不能让footer贴底，而是中间main设置了flex: 1,自适应高度撑开，所以footer才能贴底 */
+      background-color: antiquewhite;
+      flex-direction: column;
+    }
+
+    .header {
+      width: 100%;
+      height: 48px;
+      background-color: sienna;
+    }
+
+    .main {
+      flex: 1;
+      background-color: darkorange;
+      display: flex;
+    }
+
+    .center {
+      /* 设置了三栏的order来排序，即使center的元素在前面，也可以视觉上显示在中间； */
+      order: 1;
+      /* flex: 1表示 flex-grow: 1; flex-shrink: 1; flex-basis: 0% */
+      /* 意味着空间足够时增长撑满，空间不足时缩小，根本大小是0 */
+      flex: 1;
+      max-height: 100%;
+      overflow: hidden auto;
+      background-color: #fff;
+    }
+
+    .left {
+      order: 0;
+      flex: 0 0 200px;
+      max-height: 100%;
+      overflow: hidden auto;
+      background-color: lightcoral;
+    }
+
+    .right {
+      order: 2;
+      flex: 0 0 200px;
+      max-height: 100%;
+      overflow: hidden auto;
+      background-color: rosybrown;
+    }
+
+    .footer {
+      width: 100%;
+      height: 20px;
+      background-color: salmon;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="box">
+    <!-- 顶部 -->
+    <div class="header">Header</div>
+    <!-- 中间三栏 -->
+    <div class="main">
+      <!-- 中间的排前面，优先渲染，但是视觉还在中间 -->
+      <div class="center">Center</div>
+      <div class="left">Left</div>
+      <div class="right">Right</div>
+    </div>
+    <!-- 底部 -->
+    <div class="footer">Footer</div>
+  </div>
+</body>
+
+</html>
