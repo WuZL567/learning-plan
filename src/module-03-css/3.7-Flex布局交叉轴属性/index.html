@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>3.7 Flex 布局交叉轴属性练习</title>
+  <style>
+    /*
+     * 练习要求（验收标准）：
+     * 1. 展示 align-items 的全部 5 个取值：flex-start / flex-end / center / stretch / baseline
+     *    每个取值一个 flex 容器，容器高 100px，item 高度不固定，直观看出对齐差异。
+     * 2. 展示 align-content 的取值（至少 4 个），容器需要 flex-wrap: wrap 且有多行 item，
+     *    对比：单行时 align-content 有没有效果？把你的观察写进注释。
+     * 3. 展示 align-self 覆盖 align-items 的效果：容器 align-items: center，
+     *    其中一个 item 用 align-self: flex-end。
+     * 4. 注释里用自己的话解释 align-items 和 align-content 的区别（什么时候各管什么）。
+     * 5. 注释里解释 baseline 和 flex-start 的区别（什么情况下两者看起来一样）。
+     *
+     * 提示：baseline 对比时，两个 item 用不同 font-size 更容易看出差异。
+     * 提示：容器统一宽 400px、高 100px、有边框。
+     */
+    .main1 {
+      width: 400px;
+      height: 100px;
+      border: 1px solid black;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .main2 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid black;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .main3 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid black;
+      display: flex;
+      align-items: center;
+    }
+
+    .main4 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid black;
+      display: flex;
+      align-items: stretch;
+    }
+
+    .main4 .item {
+      border: 1px solid;
+    }
+
+    .main5 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid black;
+      display: flex;
+      align-items: baseline;
+    }
+
+    .main5 .item1 {
+      font-size: xx-large;
+    }
+
+    .main6 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid royalblue;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      align-content: flex-start;
+    }
+
+    .main7 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid royalblue;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      align-content: flex-end;
+    }
+
+    .main8 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid royalblue;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      align-content: center;
+    }
+
+    .main9 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid royalblue;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      align-content: space-between;
+    }
+
+    .main10 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid black;
+      display: flex;
+      align-items: flex-end;
+      /* align-content完全不会生效作用，无法影响到align-items样式 */
+      align-content: flex-start;
+    }
+
+    .main11 {
+      margin-top: 10px;
+      width: 400px;
+      height: 100px;
+      border: 1px solid black;
+      display: flex;
+      align-items: center;
+    }
+
+    .main11 .item3 {
+      /* align-self会覆盖到父元素中align-items的样式，当前item的位置是在交叉轴的尾部 */
+      align-self: flex-end;
+    }
+
+    .item1 {
+      width: 120px;
+      height: 20px;
+      border: 1px solid;
+    }
+
+    .item2 {
+      width: 120px;
+      height: 30px;
+      border: 1px solid;
+    }
+
+    .item3 {
+      width: 120px;
+      height: 50px;
+      border: 1px solid;
+    }
+
+    .item4 {
+      width: 120px;
+      height: 20px;
+      border: 1px solid;
+    }
+
+    .item5 {
+      width: 120px;
+      height: 26px;
+      border: 1px solid;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- flex-start -->
+  <div class="main1">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+  </div>
+
+  <!-- flex-end -->
+  <div class="main2">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+  </div>
+
+  <!-- center -->
+  <div class="main3">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+  </div>
+
+  <!-- stretch -->
+  <div class="main4">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+
+  <!-- baseline -->
+  <div class="main5">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+  </div>
+
+  <!-- align-content: flex-start  -->
+  <div class="main6">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+    <div class="item4">item4</div>
+    <div class="item5">item5</div>
+  </div>
+
+  <!-- align-content: flex-end  -->
+  <div class="main7">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+    <div class="item4">item4</div>
+    <div class="item5">item5</div>
+  </div>
+
+  <!-- align-content: space-between  -->
+  <div class="main8">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+    <div class="item4">item4</div>
+    <div class="item5">item5</div>
+  </div>
+
+  <!-- align-content: baseline  -->
+  <!-- 第二行和第一行在垂直方向上，分开上下两边布局了 -->
+  <div class="main9">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+    <div class="item4">item4</div>
+    <div class="item5">item5</div>
+  </div>
+
+  <!-- 单行使用align-content样式，并不会生效，完全由原本的align-items生效 -->
+  <div class="main10">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3</div>
+  </div>
+
+  <!-- align-self 覆盖 align-items 的效果 -->
+  <div class="main11">
+    <div class="item1">item1</div>
+    <div class="item2">item2</div>
+    <div class="item3">item3-spacial</div>
+  </div>
+
+  <!-- align-items 和 align-content 的区别： -->
+  <!-- 1、align-items 是控制 item 在单行的位置效果，无论是换行或者不换行的时候； -->
+  <!-- 2、而 align-content 则是控制在允许换行 flex-wrap: wrap 时，多行的位置效果，也就是说它处理的item其实是每一个单行； -->
+
+  <!-- baseline 和 flex-start 的区别： -->
+  <!-- 1、它们处理位置的依据不一样，baseline是基于item的第一行文本的位置，与文本内容有关系；而flex-start则是基于item容器位置； -->
+  <!-- 2、如果item的第一行文本的字体很大，就会导致后面item的位置和这个字体的上面平齐，类似main5的效果 -->
+  <!-- 3、如果不设置字体大小，默认浏览器字体大小下，它和flex-start的效果一致； -->
+</body>
+
+</html>
