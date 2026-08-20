@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>3.6 Flex 布局主轴属性练习</title>
+  <style>
+    /*
+     * 练习要求（验收标准）：
+     * 1. 展示 justify-content 的全部 6 个取值：
+     *    flex-start / flex-end / center / space-between / space-around / space-evenly
+     *    每个取值一个 flex 容器，容器下方标注取值名称，能直观看出空隙分布差异。
+     * 2. 额外一组：flex-direction: column 时，justify-content: center 的效果是什么？
+     *    把你的观察写进注释。
+     * 3. 注释里用自己的话解释：为什么 space-around 的两端空隙是中间的一半？
+     *
+     * 提示：容器统一宽 400px、高 80px、有边框；盒子和上面一排盒子一样大。
+     */
+    .main1 {
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    .main2 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .main3 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: center;
+    }
+
+    .main4 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .main5 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      /* 首尾相接成环 → 环上所有 item 间距相等 → 拆开后首尾相接处那份间距平分给两端 → 两端空隙 = 中间空隙的一半 */
+      justify-content: space-around;
+    }
+
+    .main6 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: space-evenly;
+    }
+
+    .main7 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .main8 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .main9 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: space-around;
+    }
+
+    .main10 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: space-evenly;
+    }
+
+    .main11 {
+      margin-top: 10px;
+      width: 400px;
+      height: 80px;
+      border: 1px solid black;
+      display: flex;
+      justify-content: space-evenly;
+    }
+
+    .main11 .item {
+      width: 500px;
+    }
+
+    .item {
+      border: 1px solid;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- flex-start -->
+  <div class="main1">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+  <!-- flex-end -->
+  <div class="main2">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+  <!-- center -->
+  <div class="main3">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+  <!-- space-between -->
+  <div class="main4">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+  <!-- space-around -->
+  <div class="main5">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+  <!-- space-evenly -->
+  <div class="main6">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+  <!-- flex-direction: column 会变成从上往下的布局，宽度自适应父元素宽度，在垂直方向上居中显示 -->
+  <div class="main7">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+  <!-- 只有一个item并且space-between -->
+  <!-- 现象是flex-start的效果 -->
+  <div class="main8">
+    <div class="item">item1</div>
+  </div>
+  <!-- 只有一个item并且space-around -->
+  <!-- 现象是center的效果 -->
+  <div class="main9">
+    <div class="item">item1</div>
+  </div>
+  <!-- 只有一个item并且space-evenly -->
+  <!-- 现象是center的效果 -->
+  <div class="main10">
+    <div class="item">item1</div>
+  </div>
+  <!-- item的宽度超过父容器的宽度，justfy-content是否生效？ -->
+  <!-- 生效，只是看不出来效果，因为宽度一致并且完全撑满了父容器的宽度，所以就是正常平分了父容器的效果 -->
+  <div class="main11">
+    <div class="item">item1</div>
+    <div class="item">item2</div>
+    <div class="item">item3</div>
+  </div>
+</body>
+
+</html>
