@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<!--
+  练习：3.11 + 3.12 + 3.13 水平垂直居中三种方案对比（冲刺块1）
+  优先级：P0  |  掌握程度：能写代码
+
+  练习目标：
+  1. 方案二：absolute + top/left:50% + transform:translate(-50%,-50%)
+  2. 方案三：absolute + inset:0 + margin:auto
+  3. 方案四：grid + place-items:center
+  4. 三个方案各写一个小区块，对比着看效果
+
+  验收标准：
+  - 三个方案都能在浏览器打开并正确居中
+  - 每个方案用注释说明：
+    (a) 它的百分比或 auto 参照物是谁
+    (b) 子元素尺寸变化时（把 width 改成 300px 试试）方案是否还成立
+  - 回答：方案三为什么 margin:auto 能居中？它和普通文档流里
+    margin:auto 只能管水平方向有什么区别？（注释里写答案）
+  - 回答：容器不设置 position 时，方案二/三的 absolute 会相对谁定位？
+    （注释里写答案）
+
+  完成时间控制在 25 分钟内（冲刺模式，三个一起做）。
+-->
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3.11-3.13 水平垂直居中三种方案</title>
+  <style>
+    /* ====== 方案二：绝对定位 + transform ====== */
+    .demo2 {
+      width: 600px;
+      height: 400px;
+      background-color: cadetblue;
+      /* 父级相对定位，如果不设置这里position，会继续往外层找到position为relative的元素定位 */
+      position: relative;
+    }
+
+    .demo2 .box {
+      width: 200px;
+      height: 120px;
+      background-color: bisque;
+      /* 子级绝对定位 */
+      position: absolute;
+      /* 上和左便宜50%的距离 */
+      /* 这里的百分比是基于父级元素的定位 */
+      top: 50%;
+      left: 50%;
+      /* 然后通过Translate来在x轴和y轴上反向移动自身一半的距离 */
+      /* 这里的百分比是基于自身的宽高 */
+      /* 子级宽高变化，还是会居中，方案依旧成立 */
+      transform: translate(-50%, -50%);
+    }
+
+    /* ====== 方案三：绝对定位 + margin:auto ====== */
+    .demo3 {
+      width: 600px;
+      height: 400px;
+      background-color: darksalmon;
+      /* 父级相对定位，如果不设置这里position，会继续往外层找到position为relative的元素定位 */
+      position: relative;
+    }
+
+    .demo3 .box {
+      width: 200px;
+      height: 120px;
+      background-color: lightgoldenrodyellow;
+      /* 子级绝对定位 */
+      position: absolute;
+      /* 这里是什么意思？inset为0表示什么？ */
+      /* inset: 0 是 top:0; right:0; bottom:0; left:0 的简写，把子元素四边"钉"在容器边缘 */
+      inset: 0;
+      /* 这里的margin是自动平分剩余空间 */
+      /* 子级宽高变化，还是会居中，方案依旧成立 */
+      margin: auto;
+    }
+
+    /* ====== 方案四：Grid + place-items ====== */
+    .demo4 {
+      width: 600px;
+      height: 400px;
+      background-color: mediumseagreen;
+      display: grid;
+      /* place-items 是 align-items + justify-items 的简写 */
+      /* place-items: center; */
+      align-items: center;
+      justify-items: center;
+    }
+
+    .demo4 .box {
+      width: 200px;
+      height: 120px;
+      background-color: lavender;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 页面结构不需要改，只需要写 CSS -->
+  <h3>方案二：absolute + transform</h3>
+  <div class="demo2">
+    <div class="box">方案二</div>
+  </div>
+
+  <h3>方案三：absolute + margin:auto</h3>
+  <div class="demo3">
+    <div class="box">方案三</div>
+  </div>
+
+  <h3>方案四：Grid + place-items</h3>
+  <div class="demo4">
+    <div class="box">方案四</div>
+  </div>
+</body>
+
+</html>
