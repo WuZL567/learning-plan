@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3.9 Grid 布局基础 - 圣杯布局</title>
+  <style>
+    /* ============================================
+       3.9 Grid 布局基础 练习
+       任务：用 Grid 实现圣杯布局（不需要 Flex）
+
+       布局结构（从上到下 5 个区域）：
+       ┌─────────────────────────────────┐
+       │            header（通栏）         │
+       ├─────────┬─────────────┬─────────┤
+       │  sidebar │    main     │  aside  │
+       ├─────────┴─────────────┴─────────┤
+       │            footer（通栏）         │
+       └─────────────────────────────────┘
+
+       验收标准：
+       1. 容器用 display: grid
+       2. grid-template-columns 定义三列：
+          sidebar 固定 200px，main 自适应(1fr)，aside 固定 200px
+       3. grid-template-rows 定义三行：
+          header 固定 60px，中间自适应(1fr)，footer 固定 60px
+       4. header 和 footer 用 grid-column 跨整行
+       5. 用 gap 设置 10px 间距
+       6. 每个区域用不同背景色区分，页面高度 100vh
+       ============================================ */
+    body {
+      display: grid;
+      /* 定义三列，从左至右依次是200px，自适应，200px */
+      grid-template-columns: 200px 1fr 200px;
+      /* 定义三行，从上往下依次是60px，自适应，60px */
+      grid-template-rows: 60px 1fr 60px;
+      /* 行间距列间距都是10px */
+      gap: 10px 10px;
+      /* 页面高度100vh */
+      height: 100vh;
+      margin: 0;
+    }
+
+    .header,
+    .sidebar,
+    .main,
+    .aside,
+    .footer {
+      border: 1px solid black;
+    }
+
+    .header,
+    .footer {
+      grid-column: 1 / -1;
+    }
+
+    .header {
+      background-color: hotpink;
+    }
+
+    .sidebar {
+      background-color: saddlebrown;
+    }
+
+    .main {
+      background-color: magenta;
+    }
+
+    .aside {
+      background-color: aliceblue;
+    }
+
+    .footer {
+      background-color: firebrick;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 提示：不需要额外包裹层，直接在 body 或一个 .container 上开 grid -->
+  <header class="header">头部</header>
+  <aside class="sidebar">侧边栏</aside>
+  <main class="main">主内容</main>
+  <aside class="aside">右栏</aside>
+  <footer class="footer">底部</footer>
+</body>
+
+</html>
