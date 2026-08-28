@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!--
+  练习：3.10 水平垂直居中方案一：Flex
+  优先级：P0  |  掌握程度：能写代码
+
+  练习目标：
+  1. 用 display:flex + justify-content:center + align-items:center
+     实现一个 div 在容器中水平垂直居中
+  2. 理解 justify-content 和 align-items 各自管哪个方向
+  3. 处理边界情况：容器尺寸不固定时（比如 50% 宽度）居中是否仍然成立？
+
+  验收标准：
+  - 代码能直接在浏览器打开，看到内容居中
+  - justify-content / align-items 两个属性都用上了，且方向理解正确
+  - 注释用你自己的话说明每个属性的作用
+  - 回答：如果容器 height 是 auto（没有固定高度），align-items:center
+    会怎样表现？为什么？（请在代码注释里写你的答案）
+
+  完成时间控制在 15 分钟内。
+-->
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3.10 水平垂直居中：Flex 方案</title>
+  <style>
+    /* ====== 你的代码写在这里 ====== */
+    /* 要求：
+       1. .container 用 flex 布局，让 .box 水平垂直居中
+       2. .container 固定宽度 600px、高度 400px、有背景色（方便看效果）
+       3. .box 固定 200px x 120px，有背景色
+       4. 每个属性旁边用注释写清它控制哪个方向
+    */
+    .container {
+      display: flex;
+      /* 当width为50%时，水平居中是否生效取决于容器宽度是否大于中间box的宽度，如果大于则生效，否则会撑满 */
+      width: 600px;
+      /* 当height为auto时，align-items:center不会出现垂直居中，因为容器高度被内部box撑满了 */
+      height: 400px;
+      background-color: cadetblue;
+      /* 控制主轴方向，当前flex-direction默认是row，所以主轴是横着的，所以这个是控制水平居中 */
+      justify-content: center;
+      /* 控制交叉轴方向，当前flex-direction默认是row，所以交叉轴是竖着的，所以这个控制的是垂直居中 */
+      align-items: center;
+    }
+
+    .box {
+      width: 200px;
+      height: 120px;
+      background-color: bisque;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 页面结构不需要改，只需要写 CSS -->
+  <div class="container">
+    <div class="box">居中内容</div>
+  </div>
+</body>
+
+</html>
