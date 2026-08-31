@@ -74,6 +74,14 @@
             "verdict": "pass",
             "studyDays": 6,
             "file": "weekly/weekly-review-week-01.md"
+        },
+        {
+            "week": 2,
+            "date": "2026-08-31",
+            "score": 9.5,
+            "verdict": "pass",
+            "studyDays": 7,
+            "file": "weekly/weekly-review-week-02.md"
         }
     ]
 }
