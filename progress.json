@@ -119,6 +119,14 @@
             "verdict": "pass",
             "studyDays": 7,
             "file": "weekly/weekly-review-week-02.md"
+        },
+        {
+            "week": 3,
+            "date": "2026-09-07",
+            "score": 9.5,
+            "verdict": "pass",
+            "studyDays": 6,
+            "file": "weekly/weekly-review-week-03.md"
         }
     ]
 }
