@@ -54,6 +54,7 @@
 # 1. 导入依赖
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -75,6 +76,14 @@ client = OpenAI(
 
 # 3. 定义请求体模型（Pydantic BaseModel）
 app = FastAPI()
+
+# 开发阶段，允许跨域请求
+app.add_middleware(
+   CORSMiddleware,
+   allow_origins=["*"],
+   allow_methods=["*"],
+   allow_headers=["*"],
+)
 
 # 定义规则：请求必须长这样
 class ChatRequest(BaseModel):
@@ -153,7 +162,9 @@ def chatStreamRequest(data: ChatRequest):
             # 没有结束，则继续判断是否有内容；
             if isFinish is False:
                if content is not None:
-                  yield f"data: {content}\n\n"
+                  lines = content.split('\n')
+                  # 拼成一次发出去，网络写次数减半，也少制造一次"帧被切开"的机会：
+                  yield "".join(f"data: {line}\n" for line in lines) + "\n"
             else:
                # 已结束，直接返回data: [DONE]，无需处理content为''；
                yield "data: [DONE]\n\n"
