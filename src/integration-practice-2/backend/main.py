@@ -1,52 +1,49 @@
 """
-整合练习二 · 里程碑 1：FastAPI 后端骨架 + 打通 DeepSeek
+整合练习二 · 里程碑 2：SSE 流式输出
 
 ================================================================
-任务说明（读完再动手）
+里程碑 1 已完成（后端骨架 + 打通 DeepSeek，8.0 分）
+下面是你自己写的 /health 和 /chat，不用动。
+本里程碑只做一件事：再加一个流式接口。
 ================================================================
 
-目标：写一个能跑起来的后端服务，提供两个接口。
+任务：新增接口 3
+    POST /chat/stream
+    请求体：{"message": "你的问题", "temperature": 0.7}   （和 /chat 一模一样）
+    返回：SSE 流，一个字一个字往外吐
 
-接口 1：健康检查
-    GET /health
-    返回：{"status": "ok"}
-    作用：确认服务活着（后面联调时先打这个，能通再查业务）
+        data: Token
+        data: 是
+        data: 语言模型
+        ...
+        data: [DONE]
 
-接口 2：AI 问答（先做非流式的）
-    POST /chat
-    请求体：{"message": "你的问题", "temperature": 0.7}
-    返回：{"reply": "AI 的回答"}
-    作用：接收前端问题 → 转发给 DeepSeek → 把回答返回
+作用：把"等 AI 全部说完再一次性返回"改成"AI 说一个字前端显示一个字"
 
 ================================================================
 验收标准（满分 10 分）
 ================================================================
 
-1. 服务能启动（2 分）
-   uvicorn 能跑起来，终端打印出监听地址
+1. 能真实流式返回（4 分）
+   curl 加 -N 能看到内容一段一段往外冒，不是等 3 秒后一次性出现
 
-2. GET /health 返回正确（1 分）
-   {"status": "ok"}
+2. SSE 格式正确（3 分）
+   每条消息是 data: 内容 + 两个换行；最后有一条 data: [DONE] 作为结束信号
 
-3. POST /chat 能真实调用 DeepSeek 并返回回答（3 分）
-   用 curl 能拿到真实 AI 回复，不是 mock 数据
+3. 边界处理（2 分）
+   没有文字的空 chunk 不发出去；中途出错时也要给前端一个终止信号
 
-4. 请求体校验生效（2 分）
-   用 Pydantic 模型定义请求体；传空 message 或错误类型时
-   返回 422 错误（FastAPI 自动处理，你要做的是把模型定义对）
-
-5. 代码注释用自己的话解释（2 分）
-   不要复述代码，要说清楚"为什么这么写"
+4. 注释用自己的话解释（1 分）
+   说清楚"为什么这么写"，不复述代码
 
 ================================================================
 提示（卡住了再看，别提前看）
 ================================================================
 
-- FastAPI 的路由用装饰器注册，类比 Express 的 app.get / app.post
-- 请求体校验用 Pydantic 的 BaseModel，类比 TS 的 interface（但运行时真的校验）
-- 启动命令：./venv/bin/uvicorn main:app --reload
-- DeepSeek 调用逻辑直接复用你 11.1.10 写的 stream_chat，去掉 stream 部分
-- API Key 从环境变量读，不要硬编码在代码里（.env 文件我已经建好了模板）
+- 流式响应用 FastAPI 的 StreamingResponse，它第一个参数要的是一个"生成器函数"
+- Python 里函数体带 yield 就是生成器，类比 JS 的 function* / yield
+- 流式 chunk 里取文字的路径和 /chat 不一样（不是 .message.content），自己打印一个 chunk 看看结构
+- curl 测流式必须加 -N（关闭缓冲），不然看起来像"没有流式"
 
 ================================================================
 你的代码从这里开始写
@@ -56,6 +53,7 @@
 
 # 1. 导入依赖
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -111,6 +109,61 @@ def chatRequest(data: ChatRequest):
       print(f"[错误] {type(e).__name__}: {e}")
       return {"reply": "服务暂时不可用，请稍后重试"}
 
-   return {'reply': ""}
-
 # 6. 启动入口（可选，用 uvicorn 命令行启动就不需要）
+
+# 7. 定义 POST /chat/stream 接口 —— 里程碑 2，从下面开始写
+#
+#    要求：
+#    - 路由用 @app.post("/chat/stream")，请求体直接复用 ChatRequest
+#    - 返回的是流式响应，不是普通 dict
+#    - 内部调 DeepSeek 时 stream=True，收到一块就往外推一块
+#    - 每块拼成 SSE 格式：data: 内容  + 两个换行
+#    - 全部说完后推一条 data: [DONE]  + 两个换行，作为结束信号
+#
+#    三个关键点：
+#    ① 流式响应第一个参数要的是"生成器函数"本身，不是调用结果
+#    ② 流式 chunk 取文字的路径和上面 /chat 不一样，先 print 一个看看
+#    ③ 有些 chunk 是空的（没有文字），要先判断再发，否则会推出空包
+
+def chatStreamRequest(data: ChatRequest):
+
+   try:
+      # 发起流式请求
+      response = client.chat.completions.create(
+         model="deepseek-v4.1-flash",
+         messages=[
+            {"role": "system", "content": "你是一个AI助手。"},
+            {"role": "user", "content": data.message},
+         ],
+         stream=True, # 流式；
+         temperature=data.temperature,
+         max_tokens=1024,
+      )
+
+      for chunk in response:
+         if not chunk.choices:
+            return
+
+         else:
+            # content就是AI需要回答的部分；
+            content = chunk.choices[0].delta.content
+            # 通过判断finish_reason是否为'stop'来判断是否已结束
+            isFinish = chunk.choices[0].finish_reason == 'stop'
+
+            # 没有结束，则继续判断是否有内容；
+            if isFinish is False:
+               if content is not None:
+                  yield f"data: {content}\n\n"
+            else:
+               # 已结束，直接返回data: [DONE]，无需处理content为''；
+               yield "data: [DONE]\n\n"
+
+   except Exception as e:
+      print(f"[服务端错误] {type(e).__name__}: {e}")
+      # API错误时，通过data: [DONE]\n\n告知前端已经结束；
+      yield "event: app_error\ndata: 服务暂时不可用，请稍后重试\ndata: [DONE]\n\n"
+      return
+
+@app.post("/chat/stream")
+def stream(data: ChatRequest):
+    return StreamingResponse(chatStreamRequest(data), media_type="text/event-stream")
