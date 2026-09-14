@@ -6,9 +6,9 @@
 
 | # | 里程碑 | 状态 | 对应技术点 |
 |---|--------|:----:|-----------|
-| 1 | FastAPI 后端骨架 + 打通 DeepSeek | 🔄 进行中 | 10.10 FastAPI 基础、10.12 请求校验 |
-| 2 | SSE 流式输出 | ⬜ 未开始 | 10.20 FastAPI SSE 流式输出 |
-| 3 | 前端对话界面 + 联调 | ⬜ 未开始 | 11.7.1 SSE 流式通信前端实现 |
+| 1 | FastAPI 后端骨架 + 打通 DeepSeek | ✅ 完成（8.0） | 10.10 FastAPI 基础、10.12 请求校验 |
+| 2 | SSE 流式输出 | ✅ 完成（8.0） | 10.20 FastAPI SSE 流式输出 |
+| 3 | 前端对话界面 + 联调 | ✅ 完成（8.0） | 11.7.1 SSE 流式通信前端实现 |
 | 4 | （可选）RAG 增强 | ⬜ 未开始 | 11.4 RAG |
 
 ## 目录结构
@@ -21,7 +21,9 @@ src/integration-practice-2/
 │   ├── requirements.txt
 │   ├── .env.example    # API Key 模板
 │   └── venv/           # 虚拟环境（已装好，不入 git）
-└── frontend/           # 里程碑 3 再建
+└── frontend/
+    ├── index.html      # 对话界面骨架（HTML + CSS）
+    └── app.js          # SSE 接收 + 渲染（你要写的）
 ```
 
 ## 启动方式
@@ -39,6 +41,9 @@ cp .env.example .env
 启动后访问：
 - http://127.0.0.1:8000/health —— 健康检查
 - http://127.0.0.1:8000/docs —— FastAPI 自动生成的 API 文档（Swagger UI）
+
+> 里程碑 3 联调时端口用 8001（`./venv/bin/uvicorn main:app --reload --port 8001`），
+> 前端用 `python3 -m http.server 5500` 起静态服务，两者端口不同属于跨域，后端需要开 CORS。
 
 ## 为什么需要后端
 
