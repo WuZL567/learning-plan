@@ -1,274 +1,357 @@
 /**
- * 整合练习二 · 里程碑 3：前端对话界面 + SSE 联调
- * 对应技术点：11.7.1 SSE 流式通信前端实现（P1，能写代码）
+ * 整合练习二 · 最小 AI 问答 Demo —— 前端
  *
- * ================================================================
- * 背景
- * ================================================================
- * 里程碑 2 你已经做出真流式后端：curl -N 能看到字一个一个往外冒。
- * 但那是在终端里看的。本里程碑把它搬进浏览器：
- * AI 说一个字，气泡里就多一个字。
+ * ================================================================================
+ * 这个文件干什么
+ * ================================================================================
  *
- * 接口（里程碑 2 写的，路由不用动）：
- *   POST http://127.0.0.1:8001/chat/stream
- *   请求体：{"message": "你的问题", "temperature": 0.7}
- *   返回：Content-Type: text/event-stream
+ * 把后端吐出来的 SSE 流，一个 token 一个 token 地渲染成聊天气泡。
  *
- *     data: 你
+ *   点击发送 ──▶ fetch(POST) ──▶ 后端把响应体当"水管"慢慢给
+ *                                    │
+ *              reader.read() 一块一块读 ◀┘
+ *                                    │
+ *              TextDecoder 解码成字符串
+ *                                    │
+ *              按 "\n" 切行 → 攒出一条完整 SSE 帧 → 解析出正文
+ *                                    │
+ *              Markdown 渲染 + 追加到气泡
  *
- *     data: 好
+ * ================================================================================
+ * 怎么读这个文件（按顺序看这五块）
+ * ================================================================================
  *
- *     ...
- *     data: [DONE]
+ *   【1】配置与 DOM      —— 接口地址、页面元素引用
+ *   【2】全局状态         —— 五个变量，每个都标了它管什么、什么时候重置
+ *   【3】渲染工具         —— addMessage / renderMarkdown / scrollToBottom
+ *   【4】帧解析           —— processEvent：一条完整 SSE 帧到了该怎么处理
+ *   【5】主流程           —— sendMessage：读流的主循环（本文件的重点）
  *
- * ================================================================
- * 任务清单
- * ================================================================
+ * ================================================================================
+ * 三个核心难点（面试也最爱问这三个）
+ * ================================================================================
  *
- * 0a. 后端加 CORS（不做这步，浏览器一个请求都发不出去）
- *     - 用 FastAPI 的 CORSMiddleware，开发阶段 allow_origins 给 ["*"]
- *     - 为什么：前端跑在 5500 端口、后端在 8001 端口，端口不同就是跨域（模块 4 学过）。
- *       浏览器会先发一个 OPTIONS 预检请求，后端不放行就直接把请求拦掉，
- *       现象是 fetch 直接 reject，后端日志里干干净净什么都看不到。
+ * 【难点一】为什么不用 EventSource？
+ *     EventSource 只支持 GET 请求。而聊天必须把对话内容 POST 过去（还要带历史消息、
+ *     temperature），所以真实 AI 应用走的都是 fetch + 手动解析 SSE 这条路。
+ *     附带好处：EventSource 会自动重连，AI 场景里反而麻烦——你不想让它把同一个
+ *     问题悄悄重问一遍、白烧一次 token。
  *
- * 0b. 收尾里程碑 2 的遗留问题
- *     - 把错误路径那行 `event: app_error: 服务暂时不可用，请稍后重试` 拆成三行：
- *       字段名 event / 事件名 app_error / 消息内容放 data:
- *     - 为什么现在才做：里程碑 2 时前端还不存在，那条消息"没人听"。这一轮前端要真的
- *       监听 app_error 事件，这个坑才闭环。
+ * 【难点二】网络切片的边界 ≠ SSE 帧的边界
+ *     后端发的是一帧一帧的（`data: 内容` + 空行），但网络给你的是随机的字节块：
  *
- * 1. 找到页面元素
- *    - 输入框 #input、发送按钮 #send、消息列表 #messages
+ *         后端发:   data: Token⏎⏎data:  是⏎⏎
+ *         网络给:   "data: Token\n"  |  "\n"  |  "data:  是\n"  |  "\n"
+ *                                  ↑ 帧的结束空行单独一块，完全可能
  *
- * 2. 写一个 addMessage(role, text) 函数
- *    - 往 #messages 里插一条气泡，**返回这个气泡元素**（等下要往里追加字）
- *    - role 区分 'user' / 'ai'，靠 class 控制样式（CSS 里已经写好 .msg.user / .msg.ai）
- *    - 插完把列表滚到底部，不然新消息在屏幕外面
+ *     所以必须有两层"缓冲"，而且**都要声明在读取循环外面**：
+ *         buffer     ── 兜住半截的「行」（一个中文字还可能被切成半个）
+ *         dataLines  ── 兜住半截的「帧」（data 行在这一块、结束空行在下一块）
  *
- * 3. 核心：sendMessage()
- *    a. 读输入框内容，空的直接不发
- *    b. 立刻插入"用户气泡"，再插入一个**空的** AI 气泡，拿到它的元素引用
- *    c. fetch 调 /chat/stream（POST + JSON body）
- *    d. 判断 response.ok —— 非 2xx 别硬读，直接进错误分支
- *    e. 把响应体当成"水管"来读（注意：不是 await response.text()，
- *       那是等全部读完才给你，等于把流式废掉）
- *    f. 边读边把二进制解码成字符串
- *    g. 从字符串里切出 SSE 帧，解析出 data: 后面的内容
- *    h. 把内容追加到 AI 气泡上（追加完记得滚到底部）
- *    i. 收到 [DONE] 就收工，停止渲染
- *    j. 出错要有提示：网络断了、后端 500、后端推的 app_error 事件，
- *       三种都要让用户在界面上看得见，不能静默失败
+ *     只要任一层写在循环里，跨块的那部分就会被丢掉。
+ *     现象：整段回答一个字都不显示，而且时好时坏（取决于网关怎么切）。
  *
- * 4. 绑定事件
- *    - 点 #send 触发 sendMessage
- *    - 在 #input 里按 Enter 也触发（Shift+Enter 换行，不发送）
- *    - 请求进行中把发送按钮禁用，防止连点
- *
- * ================================================================
- * 验收标准（满分 10 分）
- * ================================================================
- *
- * 1. 真流式渲染（4 分）
- *    点发送后，AI 气泡里的字是一个一个冒出来的，不是等几秒一次性出现
- *
- * 2. SSE 帧解析正确（3 分）
- *    气泡里不能出现 "data:" 前缀、不能出现空行残渣；中文不乱码；
- *    [DONE] 不会被当正文显示出来
- *
- * 3. 边界处理（2 分）
- *    空输入不发送；后端报错 / 网络断了 / 收到 app_error 事件时，
- *    界面要有明确提示（错误气泡或状态文字），不能白屏或者悄悄没反应
- *
- * 4. 注释用自己的话解释（1 分）
- *    说清楚"为什么这么写"，不复述代码
- *
- * ================================================================
- * 提示（卡住了再看，别提前看）
- * ================================================================
- *
- * ① 为什么不用 EventSource？
- *    去 MDN 查一下 EventSource 只支持哪种请求方法，再看看我们的接口是什么方法。
- *    真实 AI 应用要把对话内容 POST 过去，所以走的是 fetch + 读流这条路。
- *
- * ② fetch 怎么读流？
- *    response.body 上有个 getReader()，它给你一个"读卡器"：
- *    每次 read() 返回 { done, value } —— 和 curl -N 是同一个视角。
- *    value 是二进制字节，要靠 TextDecoder 解码成字符串。
- *
- * ③ 中文乱码 / 半截数据
- *    一个 UTF-8 中文字占 3 个字节，网络切片可能正好把一个字切成两半；
- *    SSE 两帧之间是"两个换行"，网络给的块也不一定正好切在帧边界上。
- *    所以大概率需要一个"缓冲区"变量，攒着还没切完的尾巴。
- *    （TextDecoder 有第二个参数能处理半截字节，去查一下它）
- *
- * ================================================================
- * 自测命令
- * ================================================================
- * 前端启动：在本目录下跑 python3 -m http.server 5500
- * 然后浏览器打开 http://127.0.0.1:5500
- *
- * 卡住了先确认后端还活着：
- * curl -N -X POST http://127.0.0.1:8001/chat/stream \
- *   -H "Content-Type: application/json" \
- *   -d '{"message": "用一句话解释什么是token"}'
- *
- * ================================================================
- * 你的代码从这里开始写
- * ================================================================
+ * 【难点三】怎么知道"说完了"还是"断了"？
+ *     HTTP 状态码在响应开始时就发出去了，之后改不了。所以：
+ *       正常读完 / 后端进程被 kill / 网线被拔 —— 这三种情况在前端看来**完全一样**，
+ *       都是 reader.read() 返回 { done: true }。
+ *     唯一的判据是后端在应用层发的终止哨兵 data: [DONE]。
+ *     循环结束后检查有没有见过它：没见过 = 回答中断。
  */
 
-const API_URL = 'http://127.0.0.1:8001/chat/stream'
+// ================================================================================
+// 【1】配置与 DOM
+// ================================================================================
+
+const API_URL = "http://127.0.0.1:8001/chat/stream";
+
+// 一次最多带多少条历史消息（要和后端 MAX_HISTORY_MESSAGES 对齐）
+// messages 是全量塞进模型上下文窗口的：越堆越长 → 越慢越贵，超长还会直接报错
+const MAX_HISTORY_MESSAGES = 20;
+
 const msgBox = document.getElementById("messages");
 const inputBox = document.getElementById("input");
 const sendButton = document.getElementById("send");
-let cooking = false;
-let isDone = false;
+const stopButton = document.getElementById("stop");
 
-// 添加消息，插入消息到#messages元素中
+// ================================================================================
+// 【2】全局状态
+// ================================================================================
+
+let cooking = false;          // 当前有没有请求在跑。用来防连点
+let isDone = false;           // 这一轮有没有正常收到 [DONE]。每次发送前置为 false
+let currentAnswer = "";       // 本轮 AI 回答的**原文**（不是 HTML）。每次发送前置空
+let currentController = null; // 本轮的 AbortController，用来掐断请求
+const conversation = [];      // 多轮对话历史 [{role, content}]。只存"正常说完"的轮次
+
+// ================================================================================
+// 【3】渲染工具
+// ================================================================================
+
+/**
+ * 往消息列表插一条气泡，返回这个气泡元素（后面要往里追加字）。
+ *
+ * 为什么用户消息用 textContent、AI 消息用 innerHTML：
+ *   用户输入是**未经处理的用户数据**，塞进 innerHTML 就是 XSS（模块 5 学过）。
+ *   AI 的回复要显示代码块/列表/加粗，必须走 HTML —— 所以它经过 DOMPurify 消毒。
+ */
 const addMessage = (role, text) => {
-    // 消息组的容器元素
-    if (!msgBox) return;
-
-    // 往容器内部插入一条气泡msg
-    const msgItem = document.createElement('div');
+    const msgItem = document.createElement("div");
     msgItem.className = `msg ${role}`;
-    msgItem.textContent = text || "";
-
+    msgItem.textContent = text ?? "";
     msgBox.appendChild(msgItem);
-
+    scrollToBottom();
     return msgItem;
-}
+};
 
-// 发送消息
+/**
+ * 把累积的 Markdown 原文渲染进气泡。
+ *
+ * marked.parse() 负责 Markdown → HTML，DOMPurify.sanitize() 再洗一遍。
+ *
+ * ★ DOMPurify 这步不能省。
+ *   AI 的输出是"外部输入"——它可能被提示注入控制，吐出 <img src=x onerror=...>。
+ *   直接塞 innerHTML 就等于让 AI 在你的页面上执行脚本。
+ *   原则：innerHTML 只配接"自己完全可控"的字符串；凡是要接外部内容，
+ *        要么用 textContent，要么先过一遍消毒库。
+ *
+ * ★ 性能提示（不影响正确性）：
+ *   每来一个 token 就把整段重新解析渲染一次，是 O(n²)。演示项目完全够用；
+ *   生产里通常会按 requestAnimationFrame 节流，比如一帧最多渲染一次。
+ */
+const renderMarkdown = (el, raw) => {
+    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+};
+
+const scrollToBottom = () => {
+    msgBox.scrollTop = msgBox.scrollHeight;
+};
+
+/**
+ * 切换"发送中"的按钮形态：生成时把发送换成停止。
+ * 顺便统一在这里管按钮的禁用状态——避免禁用/启用逻辑散落在四五个地方打架。
+ */
+const setGenerating = (on) => {
+    sendButton.hidden = on;
+    stopButton.hidden = !on;
+};
+
+// ================================================================================
+// 【4】帧解析：一条完整的 SSE 帧到了，该怎么处理
+// ================================================================================
+
+/**
+ * @param {string}   type       event: 字段的值，没有就是 ""（默认事件）
+ * @param {string[]} dataLines  这条帧里所有 data: 行的内容
+ * @param {Element}  item       要渲染进哪个气泡
+ *
+ * ★ 注意这个函数**不碰** cooking / 按钮状态。
+ *   加锁解锁只有 finally 一个负责人——之前散在四个地方改，改一个漏一个，
+ *   出现过"空输入一次，整个页面永久卡死"的 bug。
+ */
+const processEvent = (type, dataLines, item) => {
+    // ① 后端自定义的错误事件（event: app_error）
+    if (type === "app_error") {
+        addMessage("error", dataLines[0]);
+        // ★ 标记"这条流已经有结局了"。
+        //   少了这一句，主循环结束后的 isDone 检查会再补一条"回答中断"，
+        //   用户就看到两条错误提示。
+        isDone = true;
+        return;
+    }
+
+    // ② 终止哨兵：后端说"我说完了"
+    if (dataLines[0] === "[DONE]") {
+        isDone = true;
+        return;
+    }
+
+    // ③ 正常正文
+    //    一条帧里可能有多条 data 行（后端把正文里的换行拆成了多条 data 行），
+    //    按 SSE 规范要用 "\n" 拼回去——拼成空字符串的话，换行就丢了。
+    const content = dataLines.join("\n");
+    if (!content) return;      // 空帧（心跳、纯元信息）直接跳过
+
+    // 先攒原文，再整体重渲染
+    //   currentAnswer 是"原文"，有两个用处：渲染 Markdown；存进对话历史。
+    //   存历史一定要存原文而不是渲染后的 HTML——下次发给模型的是纯文本上下文。
+    currentAnswer += content;
+    renderMarkdown(item, currentAnswer);
+    scrollToBottom();
+};
+
+// ================================================================================
+// 【5】主流程：读流
+// ================================================================================
+
 const sendMessage = async () => {
-    if (cooking) return;
-    // 获取输入框的内容，并判断是否存在输入内容
-    if (!inputBox) return;
-    const userText = inputBox.value?.trim();
-    if (!userText) return;
+    if (cooking) return;                       // 防连点（同步判断，不会和下面的置位错开）
 
-    // 插入一个用户气泡；
-    const userMsgItem = addMessage('user', userText);
-    if (!userMsgItem) return;
-    setTimeout(() => {
-        // 清空用户输入框
-        inputBox.value = "";
-        // 自动滚动到底部
-        msgBox.scrollTop = msgBox.scrollHeight;
-    }, 0);
+    const userText = inputBox.value.trim();
+    if (!userText) return;                     // 空输入直接不发
 
-    // 插入一个空的AI气泡
-    const aiMsgItem = addMessage('ai', "");
-    if (!aiMsgItem) return;
+    // ---- 先把界面准备好 ----
+    addMessage("user", userText);
+    inputBox.value = "";
+    scrollToBottom();
+    const aiMsgItem = addMessage("ai", "");
 
+    // ---- 重置本轮状态 ----
     isDone = false;
+    currentAnswer = "";
 
-    // 流开始时，禁用用户发送请求
+    // ---- 上锁 ----
+    // 从这里到 finally 之间，无论走哪条路（正常结束 / return / 抛异常），
+    // 都由 finally 负责解锁。这就是 try/finally 存在的意义：
+    // 一个函数有 5 条出口，靠手动配对迟早漏掉一条。
     cooking = true;
-    sendButton.disabled = true;
-    // 请求接口数据
+    setGenerating(true);
+    currentController = new AbortController();
+
     try {
         const response = await fetch(API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: userText }),
+            body: JSON.stringify({
+                message: userText,
+                // 多轮对话的全部秘密：模型是无状态的，"记得上文"不过是把历史再发一遍。
+                // slice 只带最近 N 条，防止上下文无限增长。
+                history: conversation.slice(-MAX_HISTORY_MESSAGES),
+            }),
+            signal: currentController.signal,   // 用户点"停止"时靠它掐断
         });
 
+        // 非 2xx：后端连流都没开始（比如 422 参数校验失败），别硬读
         if (!response.ok) {
-            addMessage('error', `服务异常 ${response.status}`);
+            console.error("接口返回非 2xx:", response.status, await response.text());
+            addMessage("error", `服务异常（${response.status}），请稍后重试`);
             return;
-        };
+        }
 
-        // 调用getReader函数
         const reader = response.body.getReader();
-
-        // 解析二进制为字符串
         const decoder = new TextDecoder();
-        // 缓存未处理完的数据
+
+        // ★★ 这三个状态必须住在循环外面 ★★
+        //     buffer    —— 半截的「行」：一个中文字的 UTF-8 是 3 字节，可能被切成两半
+        //     eventType —— 半截的「帧」：event: 行在这一块
+        //     dataLines —— 半截的「帧」：data: 行在这一块，结束空行在下一块
+        //
+        //     只要写在循环内部，每次 read() 都会把它们重置一次，跨块的那半截就丢了。
+        //     现象是"整段回答一个字都不显示"，而且取决于网关怎么切片——时好时坏。
         let buffer = "";
-        // 记录事件类型
         let eventType = "";
-        // 记录所有 data 行
         let dataLines = [];
 
         while (true) {
-            sendButton.disabled = true;
-            // 这里要使用await调用read函数
             const { done, value } = await reader.read();
-            // 流结束直接跳出循环；
-            if (done) {
-                cooking = false;
-                sendButton.disabled = false;
-                break;
-            };
-            // stream: true 让 decoder 自动缓存半截字节，下次收到剩余字节后拼起来输出。
+
+            // 这里只负责跳出循环。"正常读完"和"连接断了"在这一层分不出来，
+            // 判据是后面的 isDone —— 见下方收尾检查。
+            if (done) break;
+
+            // stream: true 让解码器自己缓存"半个字符"，等下一块的剩余字节到了再拼起来。
+            // 不加这个参数，中文在块边界处会变成乱码 。
             buffer += decoder.decode(value, { stream: true });
+
+            // 按行切开。切出来的最后一段可能是半截行（后面还没到），
+            // 先塞回 buffer 留着，下一轮拼上。
             const lines = buffer.split("\n");
-            // 半截数据就放到下次再拼接
             buffer = lines.pop();
 
             for (const line of lines) {
                 if (line.startsWith("event: ")) {
                     eventType = line.slice(7);
-                }
-                else if (line.startsWith("data: ")) {
+                } else if (line.startsWith("data: ")) {
                     dataLines.push(line.slice(6));
-                }
-                else if (line === "") {
-                    // 空行 = 一条消息结束，处理
+                } else if (line === "") {
+                    // 空行 = 一条 SSE 消息结束 → 交给 processEvent
+                    // （SSE 规范：一个 \n 是行分隔，两个 \n 才是消息分隔）
                     processEvent(eventType, dataLines, aiMsgItem);
                     eventType = "";
                     dataLines = [];
                 }
+                // 其它行（注释行 ":" 开头、未知字段）按规范直接忽略
             }
         }
 
+        // ---- 收尾：把流末尾的残留处理干净 ----
+        // 网络流不一定以换行结尾，buffer 里可能还压着最后一截。不做这一步，
+        // 最后几个字会凭空消失（而且同样是"时好时坏"，最难查）。
+        buffer += decoder.decode();          // 冲掉解码器里可能残留的半个字符
+        if (buffer.startsWith("data: ")) {
+            dataLines.push(buffer.slice(6));
+        }
+        // 正常流程里这里什么都不做（后端最后一定发了空行）；
+        // 只有流被截断时，才需要把没结算的帧交出去。
+        if (dataLines.length > 0) {
+            processEvent(eventType, dataLines, aiMsgItem);
+        }
+
+        // ---- 结算这一轮 ----
         if (!isDone) {
-            addMessage('error', `回答中断，请重试`);
+            // 循环跑完了，却从没见过 [DONE] → 后端半路没了
+            addMessage("error", "回答中断，请重试");
+        } else if (currentAnswer) {
+            // ★ 只有"正常说完 + 有内容"的回答才进历史。
+            //   半截的回答存进去会污染后续上下文，模型会以为那就是完整的上一轮。
+            //   空回答也挡掉：后端 ChatMessage 有 min_length=1，
+            //   存空串进去会让下一轮请求直接 422。
+            conversation.push({ role: "user", content: userText });
+            conversation.push({ role: "assistant", content: currentAnswer });
         }
     } catch (error) {
-        addMessage('error', `网络异常，请检查连接后重试: ${error}`);
+        // 用户主动点"停止"也会走到这里，但那不是故障，别吓唬用户
+        if (error.name === "AbortError") {
+            addMessage("info", "已停止生成");
+        } else {
+            console.error("请求失败:", error);      // 原始错误留给控制台
+            addMessage("error", "网络异常，请检查连接后重试");
+        }
     } finally {
+        // ★ 唯一的解锁处：不管上面是正常结束、return 掉、还是抛异常，这里一定执行。
         cooking = false;
-        sendButton.disabled = false;
+        currentController = null;
+        setGenerating(false);
     }
-}
+};
 
-const processEvent = (type, dataLines, item) => {
-    // 错误事件
-    if (type === "app_error") {
-        addMessage('error', dataLines[0]);
-        cooking = false;
-        sendButton.disabled = false;
-        return;
-    }
+/**
+ * 停止生成。
+ *
+ * abort() 到底做了什么：
+ *   浏览器这一侧立刻停止读取、连接关闭。后端 uvicorn 检测到断连会取消这次响应，
+ *   所以不会把整个回答生成完。
+ *
+ * 但有个细节容易被面试官追问：**它不是"立刻"停的**。
+ *   本项目后端用的是同步的 OpenAI 客户端，FastAPI 会把它丢到线程池里跑。
+ *   取消只能作用于"正在 await 的那个协程"，而线程池里那个线程如果正卡在
+ *   next(response) 等着 DeepSeek 的下一块（网络读），是打断不了的 ——
+ *   得等这一块回来，取消才轮到生效。所以最多会多读一块。
+ *
+ * 想让"停止"更精确、更省额度：后端换成 AsyncOpenAI，在循环里
+ * await request.is_disconnected()，发现浏览器走了就立刻 return。
+ * 这是后面进阶要做的（11.7.11 的完整版）。
+ */
+const stopGenerating = () => {
+    if (!currentController) return;
+    currentController.abort();
+};
 
-    // 结束标记
-    if (dataLines[0] === "[DONE]") {
-        isDone = true;
-        cooking = false;
-        sendButton.disabled = false;
-        return;
-    }
-
-    // 正常文本
-    const content = dataLines.join("\n");
-    // 逐字拼接显示到页面上
-    item.textContent += content;
-    // 自动滚动到底部
-    msgBox.scrollTop = msgBox.scrollHeight;
-}
+// ================================================================================
+// 事件绑定
+// ================================================================================
 
 const main = () => {
-    // 注册监听事件
-    sendButton.addEventListener("click", () => sendMessage());
-    // 注册回车时间
+    sendButton.addEventListener("click", sendMessage);
+    stopButton.addEventListener("click", stopGenerating);
+
+    // Enter 发送，Shift+Enter 换行（聊天框的通用约定）
     inputBox.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
     });
-}
+};
 
 main();

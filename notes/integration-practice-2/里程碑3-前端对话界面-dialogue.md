@@ -227,6 +227,32 @@ while (true) {
 
 `processEvent` 的 `app_error` 分支里补一句流终止标记（例如 `isDone = true`），避免后端报错时重复提示。
 
+> ✅ 已于 2026-09-15 的代码优化中修复。
+
+### 验收后的代码优化（2026-09-15）
+
+学生要求"优化 + 加注释，方便查看原理"。实际做了这些：
+
+**后端修的 5 个真问题**
+1. `finish_reason == 'stop'` 才发 `[DONE]` → 改成循环外统一发（撞 `max_tokens` 时 `finish_reason` 是 `'length'`，旧写法永远不发 `[DONE]`，前端误报中断）
+2. `/chat` 出错返回 HTTP 200 + 假回复 → 改成 `HTTPException(502)`
+3. `load_dotenv("./.env")` 相对路径 → 改成 `Path(__file__).parent / ".env"`，并在缺 Key 时启动即报清楚
+4. `model` / `messages` / `max_tokens` 两处重复 → 提到常量 + `build_messages()`
+5. `print` → `logging`（`logger.exception()` 自带 traceback）
+
+**前端修的 5 个真问题**
+1. `app_error` 分支补 `isDone = true` → 不再重复提示
+2. `cooking` / `sendButton.disabled` 原本散在 4 个地方改 → 收敛到 `try/finally` 一处（`processEvent` 不再碰状态）
+3. 流结束时 `buffer` 残留没冲掉 → 补 `decoder.decode()` + 残留帧结算
+4. 错误文案把 `TypeError: Failed to fetch` 怼给用户 → 改成友好文案，原始错误进 `console.error`
+5. `setTimeout(..., 0)` 清输入框 → 去掉
+
+**新增能力**：多轮对话历史、Markdown 流式渲染（marked + DOMPurify 本地 vendor）、停止生成（AbortController）
+
+**实测结论**：全部通过。含"一个字节一块"的极端网络切片、XSS 注入（`<img onerror>` 被 DOMPurify 拦下、脚本未执行）、真接口多轮上下文（问"我叫什么"能答出上一轮的名字）、停止后字数不再增长且被中止的轮次不污染历史。
+
+**一个值得记住的教训**：优化过程中我在注释里写了一句"abort 之后后端还在继续生成、token 照烧"，实测后发现**这句是错的** —— uvicorn 会检测到断连并取消响应，只是取消对线程池里正在进行的那次网络读无效，所以"最多多读一块"。**注释写的是"我以为的原理"而不是"验证过的原理"，这本身就是 bug。**
+
 ### 面试话术沉淀
 
 **问：你的 AI 应用为什么用 fetch 不用 EventSource？**
