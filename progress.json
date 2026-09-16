@@ -168,6 +168,15 @@
             "verdict": "pass",
             "studyDays": 6,
             "file": "weekly/weekly-review-week-03.md"
+        },
+        {
+            "week": 4,
+            "date": "2026-09-16",
+            "score": 8.8,
+            "verdict": "pass",
+            "studyDays": 6,
+            "file": "weekly/weekly-review-week-04.md",
+            "note": "首轮 7.8 补考后 8.8；薄弱点：Function Calling 本质（第二次答错，补考纠正）、splitText 未运行验证（导师代跑）"
         }
     ]
 }
