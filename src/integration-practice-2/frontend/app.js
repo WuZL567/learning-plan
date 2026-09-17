@@ -119,12 +119,125 @@ const addMessage = (role, text) => {
  *   每来一个 token 就把整段重新解析渲染一次，是 O(n²)。演示项目完全够用；
  *   生产里通常会按 requestAnimationFrame 节流，比如一帧最多渲染一次。
  */
-const renderMarkdown = (el, raw) => {
-    el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
+const renderMarkdown = (item, raw) => {
+    let contentEl = item.querySelector(".ai-content");
+    if (!contentEl) {
+        contentEl = document.createElement("div");
+        contentEl.className = "ai-content";
+        item.prepend(contentEl);  // 插到最前面
+    }
+    contentEl.innerHTML = DOMPurify.sanitize(marked.parse(raw));
 };
 
 const scrollToBottom = () => {
     msgBox.scrollTop = msgBox.scrollHeight;
+};
+
+/**
+ * ★ 里程碑 4B 新增：渲染"引用来源"（清单 11.4.20）
+ *
+ * 后端在正文之前会先发一条 `event: sources` 帧，data 是这样一个 JSON：
+ *
+ *     {"sources":[{"index":1,"source":"01-SSE流式输出.md","score":0.87,"text":"全文……"}]}
+ *
+ * 你要把它渲染成气泡下方的一块"引用来源"区域。
+ *
+ * @param {Element} item     当前这条 AI 气泡（引用要挂在它下面）
+ * @param {Array}   sources  解析出来的数组，可能为空数组（知识库里没检索到）
+ *
+ * 要做的事：
+ *   1. 在 item 里建一个容器，挂引用卡片（别把引用和正文混在同一个 innerHTML 里 ——
+ *      ★ 关键：renderMarkdown() 每次都整体重写 item.innerHTML，会把引用冲掉。
+ *        所以引用必须挂在**另一个元素**上。）
+ *   2. 每张卡片显示：编号 [1]、文件名、相似度分数、以及一段原文
+ *   3. 原文给个"展开/收起"（细节多，做不做都行，先做出来再优化）
+ *   4. sources 为空时：显示一句"未命中知识库，本条回答未使用检索资料"
+ *      —— 这是 11.4.16 在前端的落点，得让用户看出来"这次没查资料"
+ *
+ * ★ XSS 提醒（模块 5 学过）：
+ *   文件名和原文都来自知识库文档，虽然是你自己放的，但**别养成坏习惯**。
+ *   能用 textContent 就别用 innerHTML；非要用 innerHTML 拼样式，也要先想清楚
+ *   内容是从哪来的。这和 renderMarkdown 里 DOMPurify 那一步是同一个道理。
+ *
+ * 提示：DOM 结构和样式（卡片长什么样、分数怎么摆）自己定，index.html 的 <style>
+ *       里加几条 CSS 就行，不难看即可。
+ */
+const renderSources = (item, sources) => {
+    // 创建引用容器（独立于正文，不会被 renderMarkdown 冲掉）
+    const container = document.createElement("div");
+    container.className = "sources-container";
+    item.appendChild(container);
+
+    // 没有命中知识库
+    if (!sources || sources.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "sources-empty";
+        empty.textContent = "未命中知识库，本条回答未使用检索资料";
+        container.appendChild(empty);
+        return;
+    }
+
+    // 标题
+    const title = document.createElement("div");
+    title.className = "sources-title";
+    title.textContent = "引用来源";
+    container.appendChild(title);
+
+    // 每张引用卡片
+    sources.forEach((s) => {
+        const card = document.createElement("div");
+        card.className = "source-card";
+        container.appendChild(card);
+
+        // 头部：编号 + 文件名 + 分数
+        const header = document.createElement("div");
+        header.className = "source-header";
+        card.appendChild(header);
+
+        const index = document.createElement("span");
+        index.className = "source-index";
+        index.textContent = `[${s.index}]`;
+        header.appendChild(index);
+
+        const filename = document.createElement("span");
+        filename.className = "source-filename";
+        filename.textContent = s.source;  // textContent 防 XSS
+        header.appendChild(filename);
+
+        const score = document.createElement("span");
+        score.className = "source-score";
+        score.textContent = `相关度: ${(s.score * 100).toFixed(1)}%`;
+        header.appendChild(score);
+
+        // 原文（默认收起）
+        const textContainer = document.createElement("div");
+        textContainer.className = "source-text-container";
+        card.appendChild(textContainer);
+
+        const text = document.createElement("div");
+        text.className = "source-text source-text-collapsed";
+        text.textContent = s.text;  // textContent 防 XSS
+        textContainer.appendChild(text);
+
+        // 展开/收起按钮
+        const toggle = document.createElement("button");
+        toggle.className = "source-toggle";
+        toggle.textContent = "展开";
+        textContainer.appendChild(toggle);
+
+        toggle.addEventListener("click", () => {
+            const isCollapsed = text.classList.contains("source-text-collapsed");
+            if (isCollapsed) {
+                text.classList.remove("source-text-collapsed");
+                text.classList.add("source-text-expanded");
+                toggle.textContent = "收起";
+            } else {
+                text.classList.remove("source-text-expanded");
+                text.classList.add("source-text-collapsed");
+                toggle.textContent = "展开";
+            }
+        });
+    });
 };
 
 /**
@@ -163,6 +276,26 @@ const processEvent = (type, dataLines, item) => {
     // ② 终止哨兵：后端说"我说完了"
     if (dataLines[0] === "[DONE]") {
         isDone = true;
+        return;
+    }
+
+    // ②.5 ★ 里程碑 4B 新增：引用来源帧（event: sources）
+    //
+    //     dataLines[0] 是一行 JSON，解析出来交给 renderSources。
+    //     ★ 两个坑：
+    //       1. 必须 return —— 忘了 return 它会继续往下走，被当成正文拼进回答里，
+    //          用户会在答案里看到一坨 JSON
+    //       2. JSON.parse 要 try/catch —— 万一流被截断、JSON 是半截的，
+    //          不捕获就会抛出异常，把整个读流循环带崩（连带 finally 解锁）
+    //
+    //     写完后自己验证：故意把后端发的内容改成半截 JSON，看页面会不会崩。
+    if (type === "sources") {
+        try {
+            const payload = JSON.parse(dataLines[0]);
+            renderSources(item, payload.sources);
+        } catch (e) {
+            console.error("解析 sources 帧失败:", e);
+        }
         return;
     }
 
