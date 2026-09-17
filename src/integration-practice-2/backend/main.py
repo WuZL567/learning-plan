@@ -66,6 +66,9 @@ from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+from rag import build_index, retrieve, KNOWLEDGE_DIR
+from rag_chain import filter_by_threshold, build_messages, to_sources_frame, TOP_K
+
 # 日志配置：用 logging 而不是 print
 #   print    → 没有级别、没有时间戳、出异常时丢掉 traceback（只有一行 "IndexError: xxx"，
 #              排查线上问题时"终端报错和用户现象对不上号"就是这么来的）
@@ -109,6 +112,25 @@ client = OpenAI(
     timeout=30,        # 单次请求超时（秒）
     max_retries=2,     # 网络抖动 / 5xx 时自动重试次数
 )
+
+# ================================================================================
+# 【1.5】RAG 索引 —— 里程碑 4B 新增（你来实现）
+# ================================================================================
+#
+#   要在这里做的事：**启动时建一次索引**，存进一个全局变量，之后所有请求共用。
+#
+#   为什么必须只建一次？
+#       build_index 内部要调 embedding API，实测约 0.8 秒。如果写在 /chat/stream 里，
+#       每问一句话都要白等接近 1 秒 —— 而且知识库内容根本没变，纯属重复劳动。
+#
+#   怎么"启动时做一次"？两种都行，选一种：
+#       ① FastAPI 的 lifespan（推荐，正规做法，能配合 async with）
+#       ② 模块级直接执行 build_index(...) 赋给全局变量（更简单，副作用是 import 就开跑）
+#
+#   提示：启动时打印一行日志，说明索引了多少块 —— 启动变慢了要能一眼看出是在建索引。
+
+store = build_index(KNOWLEDGE_DIR)
+print(f"向量库已加载，共 {len(store.texts)} 个文本块")
 
 # ================================================================================
 # 【2】应用与中间件
@@ -162,7 +184,7 @@ class ChatRequest(BaseModel):
 # ================================================================================
 
 
-def build_messages(data: ChatRequest) -> list[dict]:
+def old_build_messages(data: ChatRequest) -> list[dict]:
     """
     把「系统提示 + 历史对话 + 本轮问题」拼成 OpenAI 要求的 messages 数组。
 
@@ -221,7 +243,7 @@ def chatRequest(data: ChatRequest):
     try:
         response = client.chat.completions.create(
             model=MODEL,
-            messages=build_messages(data),
+            messages=old_build_messages(data),
             stream=False,
             temperature=data.temperature,
             max_tokens=MAX_TOKENS,
@@ -244,12 +266,33 @@ def chatStreamRequest(data: ChatRequest):
 
     ★ 最容易搞混的一点：生成器负责「产生」，StreamingResponse 负责「发送」。
       只写生成器、不交给 StreamingResponse，浏览器一个字节都收不到。
+
+    ★★ 里程碑 4B：在调模型之前，按顺序插入四步（你来实现）
+        ① retrieve(data.message, store, k=TOP_K)      检索
+        ② filter_by_threshold(chunks)                 过滤低分（11.4.16）
+        ③ build_messages(...) 拼 messages              用带资料的 system prompt
+           注意：原来的 build_messages(data) 用的是固定 SYSTEM_PROMPT，
+                 接了 RAG 之后要走 rag_chain 那个版本，别两个混用。
+        ④ yield to_sources_frame(chunks)               先发引用帧，再吐 token
+
+      顺序为什么不能反：前端要先拿到引用数据才能渲染引用区；
+      等正文吐完再发，用户就会看到"答案先出来、引用后冒出来"的闪烁。
     """
     try:
+        # 检索内容
+        raw_results = retrieve(data.message, store=store, k=TOP_K)
+        # 过滤低分
+        filtered_results = filter_by_threshold(chunks=raw_results)
+        # 带资料的message
+        message = build_messages(data.message, filtered_results, data.history)
+        # 发送引用帧
+        yield to_sources_frame(filtered_results)
+
+        # 再调模型，流式吐 token
         response = client.chat.completions.create(
             model=MODEL,
-            messages=build_messages(data),
-            stream=True,                 # 让 DeepSeek 也用 SSE 返回，SDK 会把流解析成 chunk 对象
+            messages=message,
+            stream=True, # 让 DeepSeek 也用 SSE 返回，SDK 会把流解析成 chunk 对象
             temperature=data.temperature,
             max_tokens=MAX_TOKENS,
         )

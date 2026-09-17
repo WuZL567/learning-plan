@@ -1,12 +1,18 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI 问答 Demo · 整合练习二</title>
   <style>
-    * { box-sizing: border-box; }
-    [hidden] { display: none !important; }
+    * {
+      box-sizing: border-box;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
 
     body {
       margin: 0;
@@ -30,8 +36,16 @@
       border-bottom: 1px solid #eceef1;
     }
 
-    .header h1 { margin: 0; font-size: 16px; }
-    .header .sub { margin: 4px 0 0; font-size: 12px; color: #8b949e; }
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .header .sub {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: #8b949e;
+    }
 
     /* ---------------- 消息列表 ---------------- */
 
@@ -52,7 +66,8 @@
       font-size: 14px;
       line-height: 1.6;
       word-break: break-word;
-      white-space: pre-wrap;      /* 保留用户输入里的换行 */
+      white-space: pre-wrap;
+      /* 保留用户输入里的换行 */
     }
 
     .msg.user {
@@ -89,18 +104,37 @@
 
     /* ---------------- AI 气泡里的 Markdown 样式 ---------------- */
 
-    .msg.ai p { margin: 0 0 8px; }
-    .msg.ai p:last-child { margin-bottom: 0; }
+    .msg.ai p {
+      margin: 0 0 8px;
+    }
 
-    .msg.ai ul, .msg.ai ol { margin: 0 0 8px; padding-left: 22px; }
-    .msg.ai li { margin: 2px 0; }
+    .msg.ai p:last-child {
+      margin-bottom: 0;
+    }
 
-    .msg.ai h1, .msg.ai h2, .msg.ai h3 {
+    .msg.ai ul,
+    .msg.ai ol {
+      margin: 0 0 8px;
+      padding-left: 22px;
+    }
+
+    .msg.ai li {
+      margin: 2px 0;
+    }
+
+    .msg.ai h1,
+    .msg.ai h2,
+    .msg.ai h3 {
       margin: 12px 0 6px;
       font-size: 15px;
       line-height: 1.4;
     }
-    .msg.ai h1:first-child, .msg.ai h2:first-child, .msg.ai h3:first-child { margin-top: 0; }
+
+    .msg.ai h1:first-child,
+    .msg.ai h2:first-child,
+    .msg.ai h3:first-child {
+      margin-top: 0;
+    }
 
     .msg.ai code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -108,7 +142,7 @@
     }
 
     /* 行内代码 */
-    .msg.ai :not(pre) > code {
+    .msg.ai :not(pre)>code {
       background: #e2e6ea;
       padding: 1px 5px;
       border-radius: 4px;
@@ -124,7 +158,11 @@
       overflow-x: auto;
       line-height: 1.5;
     }
-    .msg.ai pre code { background: none; padding: 0; }
+
+    .msg.ai pre code {
+      background: none;
+      padding: 0;
+    }
 
     .msg.ai blockquote {
       margin: 0 0 8px;
@@ -133,11 +171,26 @@
       color: #57606a;
     }
 
-    .msg.ai table { border-collapse: collapse; margin: 0 0 8px; font-size: 13px; }
-    .msg.ai th, .msg.ai td { border: 1px solid #d0d7de; padding: 4px 8px; text-align: left; }
-    .msg.ai th { background: #e7ebef; }
+    .msg.ai table {
+      border-collapse: collapse;
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
 
-    .msg.ai a { color: #1f6feb; }
+    .msg.ai th,
+    .msg.ai td {
+      border: 1px solid #d0d7de;
+      padding: 4px 8px;
+      text-align: left;
+    }
+
+    .msg.ai th {
+      background: #e7ebef;
+    }
+
+    .msg.ai a {
+      color: #1f6feb;
+    }
 
     /* ---------------- 输入区 ---------------- */
 
@@ -160,9 +213,12 @@
       max-height: 140px;
     }
 
-    #input:focus { border-color: #1f6feb; }
+    #input:focus {
+      border-color: #1f6feb;
+    }
 
-    #send, #stop {
+    #send,
+    #stop {
       padding: 0 20px;
       border: 0;
       border-radius: 10px;
@@ -173,10 +229,101 @@
       flex-shrink: 0;
     }
 
-    #send { background: #1f6feb; }
-    #stop { background: #cf222e; }
+    #send {
+      background: #1f6feb;
+    }
+
+    #stop {
+      background: #cf222e;
+    }
+
+    /* 引用容器 */
+    .sources-container {
+      margin-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sources-title {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    /* 没命中提示 */
+    .sources-empty {
+      font-size: 13px;
+      color: #888;
+      font-style: italic;
+    }
+
+    /* 引用卡片 */
+    .source-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 6px;
+    }
+
+    .source-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .source-index {
+      color: #e8c547;
+      font-weight: bold;
+    }
+
+    .source-filename {
+      color: #ccc;
+    }
+
+    .source-score {
+      color: #888;
+      margin-left: auto;
+    }
+
+    /* 原文 */
+    .source-text-container {
+      margin-top: 6px;
+    }
+
+    .source-text {
+      font-size: 12px;
+      color: #999;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .source-text-collapsed {
+      max-height: 40px;
+      overflow: hidden;
+    }
+
+    .source-text-expanded {
+      max-height: none;
+    }
+
+    /* 展开/收起按钮 */
+    .source-toggle {
+      background: none;
+      border: none;
+      color: #e8c547;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 0;
+      margin-top: 4px;
+    }
+
+    .source-toggle:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
+
 <body>
   <div class="app">
     <header class="header">
@@ -207,4 +354,5 @@
   <script src="./vendor/purify.min.js"></script>
   <script src="./app.js"></script>
 </body>
+
 </html>
